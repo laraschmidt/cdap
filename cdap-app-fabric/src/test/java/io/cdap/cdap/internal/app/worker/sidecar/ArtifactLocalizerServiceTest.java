@@ -127,9 +127,14 @@ public class ArtifactLocalizerServiceTest extends AppFabricTestBase {
 
     File newUnpackDir = client.getUnpackedArtifactLocation(artifactId.toEntityId());
 
-    //Make sure the two paths arent the same and that the old one is gone
+    //Make sure the two paths arent the same and the old directory still exists
     Assert.assertNotEquals(unpackedDir, newUnpackDir);
     validateUnpackDir(newUnpackDir);
+    validateUnpackDir(unpackedDir);
+
+    // Assert that the old cache directory is deleted after we run cleanup
+    this.localizerService.runOneIteration();
+    Assert.assertFalse(unpackedDir.exists());
   }
 
   private void validateUnpackDir(File unpackedFile) {
@@ -173,7 +178,8 @@ public class ArtifactLocalizerServiceTest extends AppFabricTestBase {
     // Delete and recreate the artifact to update the last modified date
     artifactRepository.deleteArtifact(artifactId);
 
-    // This sleep is needed to delay the file copy so that the lastModified time on the file is different
+    // This sleep is needed to delay the artifact repo "addArtifact" call
+    // so that the lastModified time on the file is different
     Thread.sleep(1000);
 
     // Wait a bit before recreating the artifact to make sure the last modified time is different
@@ -182,8 +188,13 @@ public class ArtifactLocalizerServiceTest extends AppFabricTestBase {
 
     File newArtifactPath = client.getArtifactLocation(artifactId.toEntityId());
 
-    //Make sure the two paths arent the same and that the old one is gone
+    //Make sure the two paths arent the same and that the old artifact still exists
     Assert.assertNotEquals(artifactPath, newArtifactPath);
     Assert.assertTrue(newArtifactPath.exists());
+    Assert.assertTrue(artifactPath.exists());
+
+    // Assert that the old cache file is deleted after we run cleanup
+    this.localizerService.runOneIteration();
+    Assert.assertFalse(artifactPath.exists());
   }
 }
