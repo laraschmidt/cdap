@@ -229,6 +229,8 @@ public class DistributedProgramContainerModule extends AbstractModule {
   }
 
   private void addOnPremiseModules(List<Module> modules) {
+    // Within k8s when internal authorization is enabled we use a generated token
+    // Otherwise just add a NoOp module to satisfy dependencies
     if (cConf.getBoolean(Constants.Security.ENFORCE_INTERNAL_AUTH)) {
       modules.add(new AuthenticationContextModules().getInternalAuthMasterModule(cConf));
       modules.add(CoreSecurityModules.getDistributedModule(cConf));
@@ -271,6 +273,9 @@ public class DistributedProgramContainerModule extends AbstractModule {
       }
     });
 
+    // For execution within a remote cluster we use a token from a file passed to
+    // the driver or configuration passed from driver to workers, see
+    // io.cdap.cdap.security.auth.context.AuthenticationContextModules.loadRemoteCredentials
     AuthenticationContextModules authModules = new AuthenticationContextModules();
     String principal = programOpts.getArguments().getOption(ProgramOptionConstants.PRINCIPAL);
     if (principal == null) {
