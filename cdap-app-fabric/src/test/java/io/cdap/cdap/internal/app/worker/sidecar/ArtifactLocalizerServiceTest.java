@@ -54,6 +54,7 @@ public class ArtifactLocalizerServiceTest extends AppFabricTestBase {
     cConf.set(Constants.TaskWorker.ADDRESS, "localhost");
     cConf.setInt(Constants.TaskWorker.PORT, port);
     cConf.setBoolean(Constants.Security.SSL.INTERNAL_ENABLED, false);
+    cConf.setInt(Constants.ArtifactLocalizer.CACHE_CLEANUP_INTERVAL_MIN, 60);
 
     String prefix = "task.worker.";
     cConf.set(prefix + Constants.Retry.TYPE, RetryStrategyType.FIXED_DELAY.toString());
@@ -133,7 +134,7 @@ public class ArtifactLocalizerServiceTest extends AppFabricTestBase {
     validateUnpackDir(unpackedDir);
 
     // Assert that the old cache directory is deleted after we run cleanup
-    this.localizerService.runOneIteration();
+    this.localizerService.runCleaner();
     Assert.assertFalse(unpackedDir.exists());
   }
 
@@ -194,7 +195,7 @@ public class ArtifactLocalizerServiceTest extends AppFabricTestBase {
     Assert.assertTrue(artifactPath.exists());
 
     // Assert that the old cache file is deleted after we run cleanup
-    this.localizerService.runOneIteration();
+    this.localizerService.runCleaner();
     Assert.assertFalse(artifactPath.exists());
   }
 }

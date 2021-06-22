@@ -71,8 +71,8 @@ import javax.annotation.Nullable;
  *
  * 1. Check if there is a locally cached version of the artifact, if so fetch the lastModified timestamp from
  * the filename.
- * 2. Send a request to the '.../download' endpoint in appfabric and provide the lastModified timestamp (if
- * available)
+ * 2. Send a request to the {@link io.cdap.cdap.gateway.handlers.ArtifactHttpHandlerInternal#getArtifactBytes} endpoint
+ * in appfabric and provide the lastModified timestamp (if available)
  * 3. If a lastModified timestamp was not specified, or there is a newer version of the artifact: appfabric will stream
  * the bytes for the newest version of the jar and pass the new lastModified timestamp in the response headers
  *
@@ -98,8 +98,8 @@ public class ArtifactLocalizer {
   @Inject
   public ArtifactLocalizer(CConfiguration cConf, RemoteClientFactory remoteClientFactory) {
     this.remoteClient = remoteClientFactory.createRemoteClient(Constants.Service.APP_FABRIC_HTTP,
-                                         HttpRequestConfig.DEFAULT,
-                                         Constants.Gateway.INTERNAL_API_VERSION_3);
+                                                               HttpRequestConfig.DEFAULT,
+                                                               Constants.Gateway.INTERNAL_API_VERSION_3);
     this.retryStrategy = RetryStrategies.fromConfiguration(cConf, Constants.Service.TASK_WORKER + ".");
     this.dataDir = cConf.get(Constants.CFG_LOCAL_DATA_DIR);
   }
