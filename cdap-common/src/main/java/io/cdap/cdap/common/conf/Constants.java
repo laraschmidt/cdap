@@ -1122,7 +1122,7 @@ public final class Constants {
     public static final String PRINCIPAL = "principal";
 
     /** Requires all intra-cluster communications to be authenticated. */
-    public static final String ENFORCE_INTERNAL_AUTH = "security.internal.enforce.auth";
+    public static final String INTERNAL_AUTH_ENABLED = "security.internal.auth.enabled";
 
     /**
      * App Fabric

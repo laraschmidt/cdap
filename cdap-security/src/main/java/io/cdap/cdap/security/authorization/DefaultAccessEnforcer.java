@@ -33,6 +33,7 @@ import io.cdap.cdap.proto.security.Permission;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.security.auth.CipherException;
 import io.cdap.cdap.security.auth.TinkCipher;
+import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.security.spi.authorization.AccessEnforcer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,7 +74,7 @@ public class DefaultAccessEnforcer extends AbstractAccessEnforcer {
     this.masterUser = masterUserName == null ? null : new Principal(masterUserName, Principal.PrincipalType.USER);
     this.logTimeTakenAsWarn = cConf.getInt(Constants.Security.Authorization.EXTENSION_OPERATION_TIME_WARN_THRESHOLD);
     this.internalAccessEnforcer = internalAccessEnforcer;
-    this.internalAuthEnabled = cConf.getBoolean(Constants.Security.ENFORCE_INTERNAL_AUTH);
+    this.internalAuthEnabled = SecurityUtil.isInternalAuthEnabled(cConf);
   }
 
   @Override

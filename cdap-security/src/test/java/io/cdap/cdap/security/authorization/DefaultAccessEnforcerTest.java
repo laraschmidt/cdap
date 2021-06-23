@@ -313,7 +313,7 @@ public class DefaultAccessEnforcerTest extends AuthorizationTestBase {
                                                     new Credential("credential",
                                                                    Credential.CredentialType.INTERNAL));
     CConfiguration cConfCopy = CConfiguration.copy(CCONF);
-    cConfCopy.setBoolean(Constants.Security.ENFORCE_INTERNAL_AUTH, true);
+    cConfCopy.setBoolean(Constants.Security.INTERNAL_AUTH_ENABLED, true);
     try (AccessControllerInstantiator accessControllerInstantiator =
            new AccessControllerInstantiator(cConfCopy, AUTH_CONTEXT_FACTORY)) {
       AccessController accessController = accessControllerInstantiator.get();
@@ -335,7 +335,7 @@ public class DefaultAccessEnforcerTest extends AuthorizationTestBase {
                                                    new Credential("credential",
                                                                   Credential.CredentialType.INTERNAL));
     CConfiguration cConfCopy = CConfiguration.copy(CCONF);
-    cConfCopy.setBoolean(Constants.Security.ENFORCE_INTERNAL_AUTH, true);
+    cConfCopy.setBoolean(Constants.Security.INTERNAL_AUTH_ENABLED, true);
     try (AccessControllerInstantiator accessControllerInstantiator =
            new AccessControllerInstantiator(cConfCopy, AUTH_CONTEXT_FACTORY)) {
       AccessController accessController = accessControllerInstantiator.get();
