@@ -59,7 +59,8 @@ public class SystemAuthenticationContext implements AuthenticationContext {
     // Use internal identity if user ID is null.
     // If user ID is null, the service is not handling a user request, so we assume it is an internal request.
     long currentTimestamp = System.currentTimeMillis();
-    UserIdentity identity = new UserIdentity(SYSTEM_IDENTITY, Collections.emptyList(), currentTimestamp,
+    UserIdentity identity = new UserIdentity(SYSTEM_IDENTITY, UserIdentity.IdentifierType.INTERNAL,
+                                             Collections.emptyList(), currentTimestamp,
                                              currentTimestamp + DEFAULT_EXPIRATION);
     AccessToken accessToken = tokenManager.signIdentifier(identity);
     String encodedAccessToken;
