@@ -81,12 +81,21 @@ public class DistributedSparkSubmitter extends AbstractSparkSubmitter {
     config.put("spark.yarn.security.tokens.hbase.enabled", "false");
     config.put("spark.yarn.security.tokens.hive.enabled", "false");
 
+    //--conf spark.kubernetes.container.image=gcr.io/ashau-dev0/spark:latest
+    //       --conf spark.kubernetes.authenticate.driver.serviceAccountName=spark
+    config.put("spark.kubernetes.container.image", "gcr.io/ashau-dev0/spark:latest");
+    // this was a service account I manually created
+    config.put("spark.kubernetes.authenticate.driver.serviceAccountName", "spark");
+
     return config;
   }
 
   @Override
   protected void addMaster(Map<String, String> configs, ImmutableList.Builder<String> argBuilder) {
-    argBuilder.add("--master").add("yarn")
+    argBuilder
+      //.add("--master").add("yarn")
+      // how to get the kubernetes ip? Passed from KubeMasterEnvironment somehow?
+      .add("--master").add("k8s://https://34.72.68.10")
       .add("--deploy-mode").add("cluster");
   }
 
