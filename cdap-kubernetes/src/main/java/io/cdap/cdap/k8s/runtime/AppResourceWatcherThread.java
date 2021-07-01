@@ -21,7 +21,9 @@ import io.cdap.cdap.k8s.common.ResourceChangeListener;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
+import io.kubernetes.client.openapi.apis.BatchV1Api;
 import io.kubernetes.client.openapi.models.V1Deployment;
+import io.kubernetes.client.openapi.models.V1Job;
 import io.kubernetes.client.openapi.models.V1StatefulSet;
 import io.kubernetes.client.util.Config;
 import okhttp3.Call;
@@ -66,9 +68,23 @@ abstract class AppResourceWatcherThread<T> extends AbstractWatcherThread<T> {
     };
   }
 
+  /**
+   * Creates a {@link AppResourceWatcherThread} for watching {@link V1Job} events.
+   */
+  static AppResourceWatcherThread<V1Job> createJobWatcher(String namespace, String selector) {
+    return new AppResourceWatcherThread<V1Job>("kube-job-watch", namespace, selector) {
+      @Override
+      protected Call createCall(String namespace, @Nullable String labelSelector) throws IOException, ApiException {
+        return getBatchApi().listNamespacedJobCall(namespace, null, null, null, null, labelSelector,
+                                                   null, null, null, null, true, null);
+      }
+    };
+  }
+
   private final String selector;
   private final Queue<ResourceChangeListener<T>> listeners;
   private volatile AppsV1Api appsApi;
+  private volatile BatchV1Api batchApi;
 
   private AppResourceWatcherThread(String threadName, String namespace, String selector) {
     super(threadName, namespace);
@@ -134,6 +150,33 @@ abstract class AppResourceWatcherThread<T> extends AbstractWatcherThread<T> {
       client.setReadTimeout((int) TimeUnit.MINUTES.toMillis(5));
 
       appsApi = api = new AppsV1Api(client);
+      return api;
+    }
+  }
+
+  /**
+   * Returns a {@link BatchV1Api} instance for interacting with the API server.
+   *
+   * @throws IOException if exception was raised during creation of {@link BatchV1Api}
+   */
+  BatchV1Api getBatchApi() throws IOException {
+    BatchV1Api api = batchApi;
+    if (api != null) {
+      return api;
+    }
+
+    synchronized (this) {
+      api = batchApi;
+      if (api != null) {
+        return api;
+      }
+
+      ApiClient client = Config.defaultClient();
+
+      // Set a reasonable timeout for the watch.
+      client.setReadTimeout((int) TimeUnit.MINUTES.toMillis(5));
+
+      batchApi = api = new BatchV1Api(client);
       return api;
     }
   }
