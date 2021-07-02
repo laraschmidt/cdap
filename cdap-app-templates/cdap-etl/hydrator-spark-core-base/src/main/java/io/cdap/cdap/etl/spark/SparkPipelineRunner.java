@@ -130,6 +130,7 @@ public abstract class SparkPipelineRunner {
                           Set<String> uncombinableSinks,
                           boolean consolidateStages,
                           boolean cacheFunctions) throws Exception {
+    LOG.error("LARASA IS HERE HAH HAH300");
     PipelinePhase pipelinePhase = phaseSpec.getPhase();
     BasicArguments arguments = new BasicArguments(sec);
     FunctionCache.Factory functionCacheFactory = FunctionCache.Factory.newInstance(cacheFunctions);
@@ -139,6 +140,8 @@ public abstract class SparkPipelineRunner {
                                 sec.getSecureStore(),
                                 sec.getServiceDiscoverer(),
                                 sec.getNamespace());
+
+    LOG.error("LARASA IS HERE HAH HAH 2");
     Map<String, EmittedRecords> emittedRecords = new HashMap<>();
 
     // should never happen, but removes warning
