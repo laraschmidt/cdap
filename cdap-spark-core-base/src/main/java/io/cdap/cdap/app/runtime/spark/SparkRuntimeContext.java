@@ -249,10 +249,8 @@ public final class SparkRuntimeContext extends AbstractContext implements Metric
    */
   private static Map<String, String> createMetricsTags(@Nullable WorkflowProgramInfo workflowProgramInfo) {
     Map<String, String> tags = Maps.newHashMap();
-
     // todo: use proper spark instance id. For now we have to emit smth for test framework's waitFor metric to work
     tags.put(Constants.Metrics.Tag.INSTANCE_ID, "0");
-
     if (workflowProgramInfo != null) {
       workflowProgramInfo.updateMetricsTags(tags);
     }
