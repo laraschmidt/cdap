@@ -1,0 +1,168 @@
+{
+    "name": "bqpipline",
+    "description": "Data Streams Application",
+    "artifact": {
+        "name": "cdap-data-streams",
+        "version": "6.4.1",
+        "scope": "SYSTEM"
+    },
+    "config": {
+        "stages": [
+            {
+                "name": "PubSub",
+                "plugin": {
+                    "name": "GoogleSubscriber",
+                    "type": "streamingsource",
+                    "label": "PubSub",
+                    "artifact": {
+                        "name": "google-cloud",
+                        "version": "0.17.3",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "referenceName": "laraspubsub",
+                        "project": "auto-detect",
+                        "subscription": "laraschmidtsub",
+                        "topic": "laraschmidt-topic",
+                        "format": "text",
+                        "serviceAccountType": "filePath",
+                        "serviceFilePath": "auto-detect",
+                        "numberOfReaders": "1",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"message\",\"type\":\"bytes\"},{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"timestamp\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}},{\"name\":\"attributes\",\"type\":{\"type\":\"map\",\"keys\":\"string\",\"values\":\"string\"}}]}"
+                    }
+                },
+                "outputSchema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"message\",\"type\":\"bytes\"},{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"timestamp\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}},{\"name\":\"attributes\",\"type\":{\"type\":\"map\",\"keys\":\"string\",\"values\":\"string\"}}]}",
+                "id": "PubSub",
+                "type": "streamingsource",
+                "label": "PubSub",
+                "icon": "fa-plug",
+                "$$hashKey": "object:2798",
+                "isPluginAvailable": true,
+                "_uiPosition": {
+                    "left": "370px",
+                    "top": "282px"
+                }
+            },
+            {
+                "name": "Record Duplicator",
+                "plugin": {
+                    "name": "CloneRecord",
+                    "type": "transform",
+                    "label": "Record Duplicator",
+                    "artifact": {
+                        "name": "transform-plugins",
+                        "version": "2.6.1",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "copies": "2"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": ""
+                    }
+                ],
+                "inputSchema": [],
+                "id": "Record-Duplicator",
+                "type": "transform",
+                "label": "Record Duplicator",
+                "icon": "icon-clonerecord",
+                "$$hashKey": "object:2799",
+                "isPluginAvailable": true,
+                "_uiPosition": {
+                    "left": "670px",
+                    "top": "282px"
+                }
+            },
+            {
+                "name": "BigQuery",
+                "plugin": {
+                    "name": "BigQueryTable",
+                    "type": "batchsink",
+                    "label": "BigQuery",
+                    "artifact": {
+                        "name": "google-cloud",
+                        "version": "0.17.3",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "referenceName": "bqqsink",
+                        "project": "auto-detect",
+                        "datasetProject": "google.com:clouddfe",
+                        "dataset": "laraschmidt_data",
+                        "table": "laraschmidt_table",
+                        "bucket": "gs://laraschmidt-test",
+                        "serviceAccountType": "filePath",
+                        "serviceFilePath": "auto-detect",
+                        "operation": "insert",
+                        "relationTableKey": "key",
+                        "truncateTable": "false",
+                        "allowSchemaRelaxation": "false",
+                        "location": "US",
+                        "createPartitionedTable": "false",
+                        "partitioningType": "TIME",
+                        "partitionFilterRequired": "false"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": ""
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "Record Duplicator",
+                        "schema": ""
+                    }
+                ],
+                "id": "BigQuery",
+                "type": "batchsink",
+                "label": "BigQuery",
+                "icon": "fa-plug",
+                "$$hashKey": "object:2800",
+                "isPluginAvailable": true,
+                "_uiPosition": {
+                    "left": "970px",
+                    "top": "282px"
+                }
+            }
+        ],
+        "connections": [
+            {
+                "from": "PubSub",
+                "to": "Record Duplicator"
+            },
+            {
+                "from": "Record Duplicator",
+                "to": "BigQuery"
+            }
+        ],
+        "comments": [],
+        "resources": {
+            "memoryMB": 2048,
+            "virtualCores": 1
+        },
+        "driverResources": {
+            "memoryMB": 2048,
+            "virtualCores": 1
+        },
+        "postActions": [],
+        "properties": {
+            "system.spark.spark.streaming.backpressure.enabled": "true"
+        },
+        "processTimingEnabled": true,
+        "stageLoggingEnabled": false,
+        "description": "Data Streams Application",
+        "batchInterval": "10s",
+        "clientResources": {
+            "memoryMB": 2048,
+            "virtualCores": 1
+        },
+        "disableCheckpoints": false,
+        "stopGracefully": true,
+        "checkpointDir": "gs://df-14966859711491370685-y4xwtoxgqqi6xas5aizbbqaaaa/checkpoints/"
+    }
+}
