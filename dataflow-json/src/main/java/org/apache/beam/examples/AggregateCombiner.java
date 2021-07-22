@@ -1,6 +1,7 @@
 package org.apache.beam.examples;
 
 import io.cdap.cdap.api.data.format.StructuredRecord;
+import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.plugin.batch.aggregator.function.AggregateFunction;
 import org.apache.beam.sdk.transforms.Combine;
 
@@ -38,5 +39,9 @@ public class AggregateCombiner<T, V extends AggregateFunction>
   @Override
   public StructuredRecord extractOutput(AggregateFunction<T, V> accum) {
     return StructuredRecord.builder(accum.getOutputSchema()).set(outputFieldName, accum.getAggregate()).build();
+  }
+
+  public Schema getOutputSchema() {
+    return factory.create().getOutputSchema();
   }
 }

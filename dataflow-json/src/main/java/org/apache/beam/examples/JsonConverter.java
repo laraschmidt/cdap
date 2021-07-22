@@ -2,6 +2,7 @@ package org.apache.beam.examples;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.api.data.schema.Schema;
 import org.apache.beam.sdk.transforms.SimpleFunction;
@@ -19,10 +20,10 @@ public class JsonConverter extends SimpleFunction<StructuredRecord, StructuredRe
 
   @Override
   public StructuredRecord apply(StructuredRecord message) {
-    String json = message.get(inputField);
+    Object json = message.get(inputField);
     try {
       ObjectMapper mapper = new ObjectMapper();
-      Map<String, String> map = mapper.readValue(json, Map.class);
+      Map<String, String> map = mapper.readValue(json.toString(), Map.class);
       StructuredRecord.Builder builder = StructuredRecord.builder(schema);
       for (Schema.Field field : schema.getFields()) {
         builder.convertAndSet(field.getName(), map.get(field.getName()));

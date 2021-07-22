@@ -1,12 +1,41 @@
 {
-    "name": "bqpipline",
-    "description": "Data Streams Application",
     "artifact": {
         "name": "cdap-data-streams",
         "version": "6.4.1",
         "scope": "SYSTEM"
     },
+    "description": "Data Streams Application",
+    "name": "bqpipline_v2",
     "config": {
+        "resources": {
+            "memoryMB": 2048,
+            "virtualCores": 1
+        },
+        "driverResources": {
+            "memoryMB": 2048,
+            "virtualCores": 1
+        },
+        "connections": [
+            {
+                "from": "PubSub",
+                "to": "JSONParser"
+            },
+            {
+                "from": "JSONParser",
+                "to": "Group By"
+            },
+            {
+                "from": "Group By",
+                "to": "GCS"
+            }
+        ],
+        "comments": [],
+        "postActions": [],
+        "properties": {
+            "system.spark.spark.streaming.backpressure.enabled": "true"
+        },
+        "processTimingEnabled": true,
+        "stageLoggingEnabled": false,
         "stages": [
             {
                 "name": "PubSub",
@@ -32,137 +61,110 @@
                     }
                 },
                 "outputSchema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"message\",\"type\":\"bytes\"},{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"timestamp\",\"type\":{\"type\":\"long\",\"logicalType\":\"timestamp-micros\"}},{\"name\":\"attributes\",\"type\":{\"type\":\"map\",\"keys\":\"string\",\"values\":\"string\"}}]}",
-                "id": "PubSub",
-                "type": "streamingsource",
-                "label": "PubSub",
-                "icon": "fa-plug",
-                "$$hashKey": "object:2798",
-                "isPluginAvailable": true,
-                "_uiPosition": {
-                    "left": "370px",
-                    "top": "282px"
-                }
+                "id": "PubSub"
             },
             {
-                "name": "Record Duplicator",
+                "name": "JSONParser",
                 "plugin": {
-                    "name": "CloneRecord",
+                    "name": "JSONParser",
                     "type": "transform",
-                    "label": "Record Duplicator",
+                    "label": "JSONParser",
                     "artifact": {
                         "name": "transform-plugins",
                         "version": "2.6.1",
                         "scope": "SYSTEM"
                     },
                     "properties": {
-                        "copies": "2"
+                        "field": "message",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"item\",\"type\":[\"string\",\"null\"]},{\"name\":\"price\",\"type\":[\"int\",\"null\"]}]}"
                     }
                 },
                 "outputSchema": [
                     {
                         "name": "etlSchemaBody",
-                        "schema": ""
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"item\",\"type\":[\"string\",\"null\"]},{\"name\":\"price\",\"type\":[\"int\",\"null\"]}]}"
                     }
                 ],
                 "inputSchema": [],
-                "id": "Record-Duplicator",
-                "type": "transform",
-                "label": "Record Duplicator",
-                "icon": "icon-clonerecord",
-                "$$hashKey": "object:2799",
-                "isPluginAvailable": true,
-                "_uiPosition": {
-                    "left": "670px",
-                    "top": "282px"
-                }
+                "id": "JSONParser"
             },
             {
-                "name": "BigQuery",
+                "name": "Group By",
                 "plugin": {
-                    "name": "BigQueryTable",
+                    "name": "GroupByAggregate",
+                    "type": "batchaggregator",
+                    "label": "Group By",
+                    "artifact": {
+                        "name": "core-plugins",
+                        "version": "2.6.1",
+                        "scope": "SYSTEM"
+                    },
+                    "properties": {
+                        "groupByFields": "item",
+                        "aggregates": "profit:Sum(price)"
+                    }
+                },
+                "outputSchema": [
+                    {
+                        "name": "etlSchemaBody",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody.typeagg\",\"fields\":[{\"name\":\"item\",\"type\":[\"string\",\"null\"]},{\"name\":\"profit\",\"type\":[\"int\",\"null\"]}]}"
+                    }
+                ],
+                "inputSchema": [
+                    {
+                        "name": "JSONParser",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody\",\"fields\":[{\"name\":\"item\",\"type\":[\"string\",\"null\"]},{\"name\":\"price\",\"type\":[\"int\",\"null\"]}]}"
+                    }
+                ],
+                "id": "Group-By"
+            },
+            {
+                "name": "GCS",
+                "plugin": {
+                    "name": "GCS",
                     "type": "batchsink",
-                    "label": "BigQuery",
+                    "label": "GCS",
                     "artifact": {
                         "name": "google-cloud",
                         "version": "0.17.3",
                         "scope": "SYSTEM"
                     },
                     "properties": {
-                        "referenceName": "bqqsink",
+                        "referenceName": "outputthing",
                         "project": "auto-detect",
-                        "datasetProject": "google.com:clouddfe",
-                        "dataset": "laraschmidt_data",
-                        "table": "laraschmidt_table",
-                        "bucket": "gs://laraschmidt-test",
+                        "path": "gs://laraschmidt-test/output",
+                        "suffix": "yyyy-MM-dd-HH-mm",
+                        "format": "avro",
                         "serviceAccountType": "filePath",
                         "serviceFilePath": "auto-detect",
-                        "operation": "insert",
-                        "relationTableKey": "key",
-                        "truncateTable": "false",
-                        "allowSchemaRelaxation": "false",
-                        "location": "US",
-                        "createPartitionedTable": "false",
-                        "partitioningType": "TIME",
-                        "partitionFilterRequired": "false"
+                        "location": "us",
+                        "contentType": "application/octet-stream",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody.typeagg\",\"fields\":[{\"name\":\"item\",\"type\":[\"string\",\"null\"]},{\"name\":\"profit\",\"type\":[\"int\",\"null\"]}]}"
                     }
                 },
                 "outputSchema": [
                     {
                         "name": "etlSchemaBody",
-                        "schema": ""
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody.typeagg\",\"fields\":[{\"name\":\"item\",\"type\":[\"string\",\"null\"]},{\"name\":\"profit\",\"type\":[\"int\",\"null\"]}]}"
                     }
                 ],
                 "inputSchema": [
                     {
-                        "name": "Record Duplicator",
-                        "schema": ""
+                        "name": "Group By",
+                        "schema": "{\"type\":\"record\",\"name\":\"etlSchemaBody.typeagg\",\"fields\":[{\"name\":\"item\",\"type\":[\"string\",\"null\"]},{\"name\":\"profit\",\"type\":[\"int\",\"null\"]}]}"
                     }
                 ],
-                "id": "BigQuery",
-                "type": "batchsink",
-                "label": "BigQuery",
-                "icon": "fa-plug",
-                "$$hashKey": "object:2800",
-                "isPluginAvailable": true,
-                "_uiPosition": {
-                    "left": "970px",
-                    "top": "282px"
-                }
+                "id": "GCS"
             }
         ],
-        "connections": [
-            {
-                "from": "PubSub",
-                "to": "Record Duplicator"
-            },
-            {
-                "from": "Record Duplicator",
-                "to": "BigQuery"
-            }
-        ],
-        "comments": [],
-        "resources": {
-            "memoryMB": 2048,
-            "virtualCores": 1
-        },
-        "driverResources": {
-            "memoryMB": 2048,
-            "virtualCores": 1
-        },
-        "postActions": [],
-        "properties": {
-            "system.spark.spark.streaming.backpressure.enabled": "true"
-        },
-        "processTimingEnabled": true,
-        "stageLoggingEnabled": false,
-        "description": "Data Streams Application",
         "batchInterval": "10s",
         "clientResources": {
             "memoryMB": 2048,
             "virtualCores": 1
         },
         "disableCheckpoints": false,
+        "checkpointDir": "gs://df-14966859711491370685-y4xwtoxgqqi6xas5aizbbqaaaa/checkpoints/",
         "stopGracefully": true,
-        "checkpointDir": "gs://df-14966859711491370685-y4xwtoxgqqi6xas5aizbbqaaaa/checkpoints/"
+        "description": "Data Streams Application"
     }
 }

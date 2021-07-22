@@ -2,46 +2,41 @@ package org.apache.beam.examples;
 
 import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.api.data.schema.Schema;
-import io.cdap.plugin.batch.aggregator.function.Sum;
+import org.apache.beam.sdk.coders.IterableCoder;
+import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.WithKeys;
+import org.apache.beam.sdk.transforms.windowing.FixedWindows;
+import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
+import org.joda.time.Duration;
 
 // A PTransform that groups by key and aggregates based on given aggregator.
 public class GroupByKeyAndAggregate extends PTransform<PCollection<StructuredRecord>,
   PCollection<StructuredRecord>> {
   String groupByField;     // The field in inputSchema to group by.
-  Schema inputSchema;      // The input schema.
-  String valueField;       // The field to use in aggregation.
-  String outputValueField; // The filed to output the result as.
+  Schema groupByFieldSchema;        // The schema of the key.
+  Combine.CombineFn<StructuredRecord, ?, StructuredRecord> combiner;
 
-  Schema keySchema;        // The schema of the key, generated from groupByField and inputSchema.
-
-  public GroupByKeyAndAggregate(Schema inputSchema, String groupByField, String valueField, String outputValueField) {
+  public GroupByKeyAndAggregate(String groupByField,
+                                Schema groupByFieldSchema,
+                                Combine.CombineFn<StructuredRecord, ?, StructuredRecord> combiner) {
     this.groupByField = groupByField;
-    this.inputSchema = inputSchema;
-    this.valueField = valueField;
-    this.outputValueField = outputValueField;
-
-    keySchema = Schema.of(inputSchema.getField(groupByField).getSchema().getType());
+    this.combiner = combiner;
+    this.groupByFieldSchema = groupByFieldSchema;
   }
 
   @Override
   public PCollection<StructuredRecord> expand(PCollection<StructuredRecord> input) {
-    Combine.CombineFn<StructuredRecord, ?, StructuredRecord> a =
-      new AggregateCombiner(() -> {
-        return new Sum(valueField, inputSchema);
-      }, outputValueField);
-
-    PCollection<KV<StructuredRecord, StructuredRecord>> withKeys =
-      input.apply("get keys", WithKeys.of(new GetFieldAsRecord(groupByField, keySchema)));
-    PCollection<KV<StructuredRecord, Iterable<StructuredRecord>>> grouped =
-      withKeys.apply(GroupByKey.<StructuredRecord, StructuredRecord>create());
-    PCollection<KV<StructuredRecord, StructuredRecord>> reduced = grouped.apply("Combine", Combine.groupedValues(a));
-    return reduced.apply("reduce", MapElements.via(new MergeKVStructuredRecords()));
+    KvCoder<StructuredRecord, StructuredRecord> kvCoder = KvCoder.of(new StructuredRecordCoder(), new StructuredRecordCoder());
+    return input.apply("get keys", WithKeys.of(new GetFieldAsRecord(groupByField, groupByFieldSchema)))
+      .apply(Window.into(FixedWindows.of(Duration.standardMinutes(1)))).setCoder(kvCoder)
+      .apply(GroupByKey.<StructuredRecord, StructuredRecord>create())
+      .apply("combine", Combine.groupedValues(combiner)).setCoder(kvCoder)
+      .apply("reduce", MapElements.via(new MergeKVStructuredRecords()));
   }
 }
