@@ -16,7 +16,6 @@
  */
 
 package io.cdap.cdap.etl.proto.validation;
-
 import io.cdap.cdap.etl.api.FailureCollector;
 import io.cdap.cdap.etl.api.validation.ValidationException;
 import io.cdap.cdap.etl.api.validation.ValidationFailure;
@@ -31,6 +30,7 @@ import javax.annotation.Nullable;
 public class SimpleFailureCollector implements FailureCollector {
 
   private final List<ValidationFailure> failures;
+
 
   public SimpleFailureCollector() {
     this.failures = new ArrayList<>();

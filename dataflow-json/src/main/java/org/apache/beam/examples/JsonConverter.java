@@ -1,13 +1,11 @@
 package org.apache.beam.examples;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.cdap.cdap.api.common.Bytes;
 import io.cdap.cdap.api.data.format.StructuredRecord;
 import io.cdap.cdap.api.data.schema.Schema;
+import io.cdap.cdap.format.StructuredRecordStringConverter;
 import org.apache.beam.sdk.transforms.SimpleFunction;
 
-import java.util.Map;
+import java.io.IOException;
 
 public class JsonConverter extends SimpleFunction<StructuredRecord, StructuredRecord> {
   private Schema schema;      // Expected output schema.
@@ -18,19 +16,26 @@ public class JsonConverter extends SimpleFunction<StructuredRecord, StructuredRe
     this.inputField = inputField;
   }
 
+  public static String print(StructuredRecord record) {
+    Schema schema = record.getSchema();
+    if (schema.getType() == Schema.Type.RECORD) {
+      String s = "";
+      for (Schema.Field field : record.getSchema().getFields()) {
+        s += field + ": " + record.get(field.getName()).toString() + ",";
+      }
+      return s;
+    } else {
+      return schema.getType().toString();
+    }
+  }
+
   @Override
   public StructuredRecord apply(StructuredRecord message) {
-    Object json = message.get(inputField);
+    byte[] json = message.get(inputField);
     try {
-      ObjectMapper mapper = new ObjectMapper();
-      Map<String, String> map = mapper.readValue(json.toString(), Map.class);
-      StructuredRecord.Builder builder = StructuredRecord.builder(schema);
-      for (Schema.Field field : schema.getFields()) {
-        builder.convertAndSet(field.getName(), map.get(field.getName()));
-      }
-      return builder.build();
-    } catch (JsonProcessingException ex) {
-      throw new RuntimeException(ex);
+      return StructuredRecordStringConverter.fromJsonString(new String(json), schema);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
   }
 }
