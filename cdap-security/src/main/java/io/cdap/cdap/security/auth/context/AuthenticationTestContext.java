@@ -16,8 +16,11 @@
 
 package io.cdap.cdap.security.auth.context;
 
+import io.cdap.cdap.proto.security.Credential;
 import io.cdap.cdap.proto.security.Principal;
 import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
+
+import java.util.Properties;
 
 /**
  * A dummy {@link AuthenticationContext} to be used in tests.
@@ -25,6 +28,15 @@ import io.cdap.cdap.security.spi.authentication.AuthenticationContext;
 public class AuthenticationTestContext implements AuthenticationContext {
   @Override
   public Principal getPrincipal() {
-    return new Principal(System.getProperty("user.name"), Principal.PrincipalType.USER);
+    Properties properties = System.getProperties();
+    String credentialValue = properties.getProperty("user.credential.value");
+    String credentialTypeStr = properties.getProperty("user.credential.type");
+    Credential credential = null;
+    if (credentialValue != null && credentialTypeStr != null) {
+      Credential.CredentialType credentialType = Credential.CredentialType
+        .valueOf(credentialTypeStr);
+      credential = new Credential(credentialValue, credentialType);
+    }
+    return new Principal(System.getProperty("user.name"), Principal.PrincipalType.USER, credential);
   }
 }

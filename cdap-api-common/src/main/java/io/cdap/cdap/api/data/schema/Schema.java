@@ -22,6 +22,7 @@ import io.cdap.cdap.internal.io.SQLSchemaParser;
 import io.cdap.cdap.internal.io.SchemaTypeAdapter;
 
 import java.io.IOException;
+import java.io.ObjectStreamException;
 import java.io.Reader;
 import java.io.Serializable;
 import java.io.StringWriter;
@@ -37,6 +38,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import javax.annotation.Nullable;
 
 /**
@@ -226,6 +228,23 @@ public final class Schema implements Serializable {
   }
 
   /**
+   * Simple serialized form of schema that allow to use {@link SchemaCache}
+   */
+  private static class SerializedForm implements Serializable {
+    private final String schemaCacheStr;
+    private final String json;
+
+    private SerializedForm(String schemaCacheStr, String json) {
+      this.schemaCacheStr = schemaCacheStr;
+      this.json = json;
+    }
+
+    Object readResolve() throws ObjectStreamException {
+      return SchemaCache.fromJson(schemaCacheStr, json);
+    }
+  }
+
+  /**
    * Parse the given JSON representation, as returned by {@link #toString()} into a Schema object.
    *
    * @param schemaJson the json representation of the schema
@@ -245,6 +264,15 @@ public final class Schema implements Serializable {
    */
   public static Schema parseJson(Reader reader) throws IOException {
     return SCHEMA_TYPE_ADAPTER.fromJson(reader);
+  }
+
+  /**
+   * Java serialization method that allows to replace object written with a substitute.
+   * Later {@link SerializedForm#readResolve()} will do a schema resolution on deserialization.
+   * @see Serializable for details on writeReplace/readResolve contract.
+   */
+  private Object writeReplace() throws ObjectStreamException {
+    return new SerializedForm(getSchemaHash().toString(), toString());
   }
 
   /**
@@ -386,7 +414,7 @@ public final class Schema implements Serializable {
    * @param enumClass Enum values.
    * @return A {@link Schema} of {@link Type#ENUM ENUM} type.
    */
-  public static Schema enumWith(Class<Enum<?>> enumClass) {
+  public static Schema enumWith(Class<? extends Enum<?>> enumClass) {
     Enum<?>[] enumConstants = enumClass.getEnumConstants();
     String[] names = new String[enumConstants.length];
     for (int i = 0; i < enumConstants.length; i++) {
@@ -427,6 +455,37 @@ public final class Schema implements Serializable {
       throw new IllegalArgumentException("Record name cannot be null.");
     }
     return new Schema(Type.RECORD, null, null, null, null, null, name, null, null, 0, 0);
+  }
+
+  /**
+   * Creates a {@link Type#RECORD RECORD} {@link Schema} with a name based its {@link Field Fields}.
+   * The ordering of the fields inside the record would be the same as the one being passed in.
+   *
+   * @param fields All the fields that the record contains.
+   * @return A {@link Schema} of {@link Type#RECORD RECORD} type.
+   */
+  public static Schema recordOf(Field...fields) {
+    return recordOf(Arrays.asList(fields));
+  }
+
+  /**
+   * Creates a {@link Type#RECORD RECORD} {@link Schema} with a name based on its {@link Field Fields}.
+   * The ordering of the fields inside the record would be the same as the {@link Iterable#iterator()} order.
+   *
+   * @param fields All the fields that the record contains.
+   * @return A {@link Schema} of {@link Type#RECORD RECORD} type.
+   */
+  public static Schema recordOf(Iterable<Field> fields) {
+    // We generate a temporary random name for the record.
+    // The name has to be different from all its child schemas, as AVRO does not allow to redefine a record
+    // The name will not be part of the final hash
+    String tempName = UUID.randomUUID().toString().replace("-", "");
+    Schema tempRecord = recordOf(tempName, fields);
+
+    // SchemaHash ignores the record name when receiving false as its second parameter.
+    SchemaHash schemaHash = new SchemaHash(tempRecord, false);
+    String hashName = schemaHash.toString();
+    return recordOf(hashName, fields);
   }
 
   /**

@@ -16,10 +16,6 @@
 
 package io.cdap.cdap.internal.app.runtime.distributed.remote;
 
-import com.google.common.base.Throwables;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.hash.Hashing;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.Service;
@@ -68,6 +64,7 @@ import io.cdap.cdap.security.auth.AccessToken;
 import io.cdap.cdap.security.auth.AccessTokenCodec;
 import io.cdap.cdap.security.auth.TokenManager;
 import io.cdap.cdap.security.auth.UserIdentity;
+import io.cdap.cdap.security.impersonation.SecurityUtil;
 import io.cdap.cdap.spi.data.transaction.TransactionRunner;
 import io.cdap.cdap.spi.data.transaction.TransactionRunners;
 import org.apache.hadoop.conf.Configuration;
@@ -114,7 +111,6 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -346,8 +342,10 @@ public class RemoteExecutionTwillRunnerService implements TwillRunnerService, Pr
       secretFiles.put(Constants.RuntimeMonitor.SERVICE_PROXY_PASSWORD_FILE,
                       generateAndSaveServiceProxySecret(programRunId, keysDirLocation));
     }
-    secretFiles.put(Constants.Security.Authentication.RUNTIME_TOKEN_FILE,
-                    generateAndSaveRuntimeToken(programRunId, keysDirLocation));
+    if (SecurityUtil.isInternalAuthEnabled(cConf)) {
+      secretFiles.put(Constants.Security.Authentication.RUNTIME_TOKEN_FILE,
+                      generateAndSaveRuntimeToken(programRunId, keysDirLocation));
+    }
 
     RuntimeJobManager jobManager = provisioningService.getRuntimeJobManager(programRunId, programOpts).orElse(null);
     // Use RuntimeJobManager to launch the remote process if it is supported
@@ -387,8 +385,8 @@ public class RemoteExecutionTwillRunnerService implements TwillRunnerService, Pr
       long currentTimestamp = System.currentTimeMillis();
       //TODO: Use a better identity & expiration
       UserIdentity identity = new UserIdentity(Constants.Security.Authentication.RUNTIME_IDENTITY,
-                                               Collections.emptyList(), currentTimestamp,
-                                               currentTimestamp + DEFAULT_EXPIRATION);
+                                               UserIdentity.IdentifierType.INTERNAL, Collections.emptyList(),
+                                               currentTimestamp, currentTimestamp + DEFAULT_EXPIRATION);
       AccessToken accessToken = tokenManager.signIdentifier(identity);
       byte[] encodedAccessToken = Base64.getEncoder().encode(accessTokenCodec.encode(accessToken));
       Location location = keysDir.append(Constants.Security.Authentication.RUNTIME_TOKEN_FILE);

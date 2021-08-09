@@ -18,6 +18,8 @@ package io.cdap.cdap.runtime.spi.provisioner.dataproc;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.client.http.HttpResponseException;
+import com.google.api.client.http.HttpStatusCodes;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.gax.core.CredentialsProvider;
@@ -34,6 +36,7 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.Network;
 import com.google.api.services.compute.model.NetworkList;
 import com.google.api.services.compute.model.NetworkPeering;
+import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.cloud.dataproc.v1.AutoscalingConfig;
 import com.google.cloud.dataproc.v1.Cluster;
 import com.google.cloud.dataproc.v1.ClusterConfig;
@@ -123,7 +126,8 @@ class DataprocClient implements AutoCloseable {
    * @throws IOException if failed to connect to GCP api during the client creation
    * @throws GeneralSecurityException if the client is failed to authenticate
    */
-  static DataprocClient fromConf(DataprocConf conf) throws IOException, GeneralSecurityException {
+  static DataprocClient fromConf(DataprocConf conf) throws IOException, GeneralSecurityException,
+    RetryableProvisionException {
     return fromConf(conf, true);
   }
 
@@ -140,7 +144,20 @@ class DataprocClient implements AutoCloseable {
    * @throws GeneralSecurityException if the client is failed to authenticate
    */
   static DataprocClient fromConf(DataprocConf conf,
-                                 boolean requireNetwork) throws IOException, GeneralSecurityException {
+                                 boolean requireNetwork) throws IOException, GeneralSecurityException,
+    RetryableProvisionException {
+    try {
+      return getDataprocClient(conf, requireNetwork);
+    } catch (HttpResponseException e) {
+      if (e.getStatusCode() == HttpStatusCodes.STATUS_CODE_SERVICE_UNAVAILABLE) {
+        throw new RetryableProvisionException(e);
+      }
+      throw e;
+    }
+  }
+
+  private static DataprocClient getDataprocClient(DataprocConf conf,
+                                                  boolean requireNetwork) throws IOException, GeneralSecurityException {
     ClusterControllerClient client = getClusterControllerClient(conf);
     Compute compute = getCompute(conf);
 
@@ -314,7 +331,8 @@ class DataprocClient implements AutoCloseable {
    */
   private static Compute getCompute(DataprocConf conf) throws GeneralSecurityException, IOException {
     HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-    return new Compute.Builder(httpTransport, JacksonFactory.getDefaultInstance(), conf.getComputeCredential())
+    return new Compute.Builder(httpTransport, JacksonFactory.getDefaultInstance(),
+                               new HttpCredentialsAdapter(conf.getComputeCredential()))
       .setApplicationName("cdap")
       .build();
   }
@@ -520,11 +538,29 @@ class DataprocClient implements AutoCloseable {
         client.createClusterAsync(conf.getProjectId(), conf.getRegion(), cluster);
       return operationFuture.getMetadata().get();
     } catch (ExecutionException e) {
+      cleanUpClusterAfterCreationFailure(name);
       Throwable cause = e.getCause();
       if (cause instanceof ApiException) {
         throw handleApiException((ApiException) cause);
       }
       throw new DataprocRuntimeException(cause);
+    }
+  }
+
+  private void cleanUpClusterAfterCreationFailure(String name) {
+    if (conf.isSkipDelete()) {
+      //Don't delete even failed one when skip delete is set
+      return;
+    }
+    try {
+      Optional<Cluster> cluster = getDataprocCluster(name)
+        .filter(c -> c.getStatus().getState() == ClusterStatus.State.ERROR);
+      if (cluster.isPresent()) {
+        deleteCluster(name);
+      }
+    } catch (Exception e) {
+      LOG.warn("Can't remove Dataproc Cluster " + name + ". " +
+                 "Attempted deletion because state was ERROR after creation", e);
     }
   }
 

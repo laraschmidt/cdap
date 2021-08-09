@@ -148,6 +148,28 @@ public final class SecurityUtil {
                        AuthenticationMode.MANAGED).equals(AuthenticationMode.MANAGED);
   }
 
+  /**
+   * Checks if perimeter security is enabled in proxy mode.
+   *
+   * @return {@code true} if security enabled in proxy mode
+   * @see Constants.Security#ENABLED
+   * @see Constants.Security.Authentication#MODE
+   */
+  public static boolean isProxySecurity(CConfiguration cConf) {
+    return cConf.getBoolean(Constants.Security.ENABLED)
+      && cConf.getEnum(Constants.Security.Authentication.MODE,
+                       AuthenticationMode.MANAGED).equals(AuthenticationMode.PROXY);
+  }
+
+  /**
+   * Checks if internal authenticated communication should be enforced.
+   *
+   * @return {@code true} if internal auth is enabled.
+   */
+  public static boolean isInternalAuthEnabled(CConfiguration cConf) {
+    return cConf.getBoolean(Constants.Security.INTERNAL_AUTH_ENABLED);
+  }
+
   public static String getMasterPrincipal(CConfiguration cConf) {
     String principal = cConf.get(Constants.Security.CFG_CDAP_MASTER_KRB_PRINCIPAL);
     if (principal == null) {

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2020 Cask Data, Inc.
+ * Copyright © 2020-2021 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -45,6 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,7 @@ import java.util.Map;
 public class KubeTwillLauncher implements MasterEnvironmentRunnable {
 
   private static final Logger LOG = LoggerFactory.getLogger(KubeTwillLauncher.class);
+  private static final Gson GSON = new Gson();
 
   private final MasterEnvironmentRunnableContext context;
   private final KubeMasterEnvironment masterEnv;
@@ -84,10 +86,10 @@ public class KubeTwillLauncher implements MasterEnvironmentRunnable {
     List<String> appArgs;
     List<String> runnableArgs;
     try (Reader reader = Files.newBufferedReader(argumentsPath, StandardCharsets.UTF_8)) {
-      Gson gson = new Gson();
-      JsonObject jsonObj = gson.fromJson(reader, JsonObject.class);
-      appArgs = gson.fromJson(jsonObj.get("arguments"), new TypeToken<List<String>>() { }.getType());
-      Map<String, List<String>> map = gson.fromJson(jsonObj.get("runnableArguments"),
+
+      JsonObject jsonObj = GSON.fromJson(reader, JsonObject.class);
+      appArgs = GSON.fromJson(jsonObj.get("arguments"), new TypeToken<List<String>>() { }.getType());
+      Map<String, List<String>> map = GSON.fromJson(jsonObj.get("runnableArguments"),
                                                     new TypeToken<Map<String, List<String>>>() { }.getType());
       runnableArgs = map.getOrDefault(runnableName, Collections.emptyList());
     }
@@ -124,8 +126,13 @@ public class KubeTwillLauncher implements MasterEnvironmentRunnable {
           runnable.destroy();
         }
       } finally {
-        // Delete the pod itself to avoid pod goes into CrashLoopBackoff
-        deletePod(podInfo);
+        // Delete the pod when pod deletion is enabled. When k8s job is submitted, pod deletion is disabled.
+        if (Arrays.stream(args).noneMatch(str -> str.equalsIgnoreCase(KubeMasterEnvironment.DISABLE_POD_DELETION))) {
+          // Delete the pod itself to avoid pod goes into CrashLoopBackoff. This is added for preview pods.
+          // When pod is exited, exponential backoff happens. So pod restart time keep increasing.
+          // Deleting pod does not trigger exponential backoff.
+          deletePod(podInfo);
+        }
       }
     }
   }
@@ -138,7 +145,6 @@ public class KubeTwillLauncher implements MasterEnvironmentRunnable {
       runnable.stop();
     }
   }
-
 
   private void deletePod(PodInfo podInfo) {
     try {

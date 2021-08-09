@@ -231,13 +231,8 @@ public class DistributedProgramContainerModule extends AbstractModule {
 
   private void addOnPremiseModules(List<Module> modules) {
     CoreSecurityModule coreSecurityModule = CoreSecurityRuntimeModule.getDistributedModule(cConf);
-
-    if (cConf.getBoolean(Constants.Security.ENFORCE_INTERNAL_AUTH)) {
-      modules.add(new AuthenticationContextModules().getMasterModule());
-      modules.add(coreSecurityModule);
-    } else {
-      modules.add(new AuthenticationContextModules().getNoOpModule());
-    }
+    modules.add(new AuthenticationContextModules().getMasterModule());
+    modules.add(coreSecurityModule);
 
     // If MasterEnvironment is not available, assuming it is the old hadoop stack with ZK, Kafka
     MasterEnvironment masterEnv = MasterEnvironments.getMasterEnvironment();
@@ -278,6 +273,9 @@ public class DistributedProgramContainerModule extends AbstractModule {
       }
     });
 
+    // For execution within a remote cluster we use a token from a file passed to
+    // the driver or configuration passed from driver to workers, see
+    // io.cdap.cdap.security.auth.context.AuthenticationContextModules.loadRemoteCredentials
     AuthenticationContextModules authModules = new AuthenticationContextModules();
     String principal = programOpts.getArguments().getOption(ProgramOptionConstants.PRINCIPAL);
     if (principal == null) {

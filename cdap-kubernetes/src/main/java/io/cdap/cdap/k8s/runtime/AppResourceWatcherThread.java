@@ -16,18 +16,23 @@
 
 package io.cdap.cdap.k8s.runtime;
 
+import com.google.gson.reflect.TypeToken;
 import io.cdap.cdap.k8s.common.AbstractWatcherThread;
 import io.cdap.cdap.k8s.common.ResourceChangeListener;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
-import io.kubernetes.client.openapi.apis.AppsV1Api;
+import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1Deployment;
+import io.kubernetes.client.openapi.models.V1Job;
 import io.kubernetes.client.openapi.models.V1StatefulSet;
 import io.kubernetes.client.util.Config;
+import io.kubernetes.client.util.Watch;
+import io.kubernetes.client.util.Watchable;
 import okhttp3.Call;
 import org.apache.twill.common.Cancellable;
 
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -44,35 +49,36 @@ abstract class AppResourceWatcherThread<T> extends AbstractWatcherThread<T> {
    * Creates a {@link AppResourceWatcherThread} for watching {@link V1Deployment} events.
    */
   static AppResourceWatcherThread<V1Deployment> createDeploymentWatcher(String namespace, String selector) {
-    return new AppResourceWatcherThread<V1Deployment>("kube-deployment-watch", namespace, selector) {
-      @Override
-      protected Call createCall(String namespace, @Nullable String labelSelector) throws IOException, ApiException {
-        return getAppsApi().listNamespacedDeploymentCall(namespace, null, null, null, null, labelSelector,
-                                                         null, null, null, null, true, null);
-      }
-    };
+    return new AppResourceWatcherThread<V1Deployment>("apps", "v1", "deployments", namespace, selector) { };
   }
 
   /**
    * Creates a {@link AppResourceWatcherThread} for watching {@link V1StatefulSet} events.
    */
   static AppResourceWatcherThread<V1StatefulSet> createStatefulSetWatcher(String namespace, String selector) {
-    return new AppResourceWatcherThread<V1StatefulSet>("kube-statefulset-watch", namespace, selector) {
-      @Override
-      protected Call createCall(String namespace, @Nullable String labelSelector) throws IOException, ApiException {
-        return getAppsApi().listNamespacedStatefulSetCall(namespace, null, null, null, null, labelSelector,
-                                                          null, null, null, null, true, null);
-      }
-    };
+    return new AppResourceWatcherThread<V1StatefulSet>("apps", "v1", "statefulsets", namespace, selector) { };
   }
 
+  /**
+   * Creates a {@link AppResourceWatcherThread} for watching {@link V1Job} events.
+   */
+  static AppResourceWatcherThread<V1Job> createJobWatcher(String namespace, String selector) {
+    return new AppResourceWatcherThread<V1Job>("batch", "v1", "jobs", namespace, selector) { };
+  }
+
+  private final String group;
+  private final String version;
+  private final String plural;
   private final String selector;
   private final Queue<ResourceChangeListener<T>> listeners;
-  private volatile AppsV1Api appsApi;
+  private volatile ApiClient apiClient;
 
-  private AppResourceWatcherThread(String threadName, String namespace, String selector) {
-    super(threadName, namespace);
+  private AppResourceWatcherThread(String group, String version, String plural, String namespace, String selector) {
+    super("kube-" + plural + "-watch", namespace);
     setDaemon(true);
+    this.group = group;
+    this.version = version;
+    this.plural = plural;
     this.selector = selector;
     this.listeners = new ConcurrentLinkedQueue<>();
   }
@@ -83,6 +89,17 @@ abstract class AppResourceWatcherThread<T> extends AbstractWatcherThread<T> {
     listeners.add(wrappedListener);
     resetWatch();
     return () -> listeners.remove(wrappedListener);
+  }
+
+  @Override
+  protected Watchable<T> createWatchable(Type resourceType, String namespace,
+                                         @Nullable String labelSelector) throws IOException, ApiException {
+    ApiClient apiClient = getApiClient();
+    CustomObjectsApi api = new CustomObjectsApi(apiClient);
+    Call call = api.listNamespacedCustomObjectCall(group, version, namespace, plural, null, null, null,
+                                                   labelSelector, null, null, null, true, null);
+    return Watch.createWatch(apiClient, call, TypeToken.getParameterized(Watch.Response.class,
+                                                                         resourceType).getType());
   }
 
   @Nullable
@@ -106,35 +123,24 @@ abstract class AppResourceWatcherThread<T> extends AbstractWatcherThread<T> {
     listeners.forEach(l -> l.resourceDeleted(resource));
   }
 
-  @Override
-  protected ApiClient getApiClient() throws IOException {
-    return getAppsApi().getApiClient();
-  }
-
-  /**
-   * Returns a {@link AppsV1Api} instance for interacting with the API server.
-   *
-   * @throws IOException if exception was raised during creation of {@link AppsV1Api}
-   */
-  AppsV1Api getAppsApi() throws IOException {
-    AppsV1Api api = appsApi;
-    if (api != null) {
-      return api;
+  private ApiClient getApiClient() throws IOException {
+    ApiClient client = apiClient;
+    if (client != null) {
+      return client;
     }
 
     synchronized (this) {
-      api = appsApi;
-      if (api != null) {
-        return api;
+      client = apiClient;
+      if (client != null) {
+        return client;
       }
 
-      ApiClient client = Config.defaultClient();
+      client = Config.defaultClient();
 
       // Set a reasonable timeout for the watch.
       client.setReadTimeout((int) TimeUnit.MINUTES.toMillis(5));
-
-      appsApi = api = new AppsV1Api(client);
-      return api;
+      apiClient = client;
+      return client;
     }
   }
 

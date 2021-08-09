@@ -3672,12 +3672,20 @@
   </property>
 
   <!-- Retry configuration for task worker -->
-  <!-- small delay helps when there are free worker pods available -->
+  <!-- Use an exponential delay that cap at 2 seconds interval -->
   <property>
     <name>task.worker.retry.policy.base.delay.ms</name>
-    <value>1</value>
+    <value>10</value>
     <description>
       The base delay between retries in milliseconds
+    </description>
+  </property>
+
+  <property>
+    <name>task.worker.retry.policy.max.delay.ms</name>
+    <value>2000</value>
+    <description>
+      The maximum delay between retries in milliseconds
     </description>
   </property>
 
@@ -3701,7 +3709,7 @@
 
   <property>
     <name>task.worker.retry.policy.type</name>
-    <value>fixed.delay</value>
+    <value>exponential.backoff</value>
     <description>
       The type of retry policy for programs. Allowed options:
       "none", "fixed.delay", or "exponential.backoff".
@@ -4186,7 +4194,7 @@
   <!-- Internal Security -->
 
   <property>
-    <name>security.internal.enforce.auth</name>
+    <name>security.internal.auth.enabled</name>
     <value>false</value>
     <description>
       A security-hardening measure which enforces authenticated communication between internal system services.
@@ -4352,6 +4360,14 @@
     <value>10</value>
     <description>
       Size of the stateful disk for the task worker.
+    </description>
+  </property>
+
+  <property>
+    <name>task.worker.container.disk.readonly</name>
+    <value>true</value>
+    <description>
+      If true, disk volume will be mount as readonly.
     </description>
   </property>
 
